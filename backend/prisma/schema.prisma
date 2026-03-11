@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Empresa {
+  id         String   @id @default(uuid())
+  nome       String
+  cnpj       String?  @unique
+  email      String   @unique
+  telefone   String?
+  logo       String?
+  plano      Plano    @default(BASICO)
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  usuarios       Usuario[]
+  departamentos  Departamento[]
+  localizacoes   Localizacao[]
+  ativos         Ativo[]
+  categorias     Categoria[]
+  inventarios    Inventario[]
+  alertas        Alerta[]
+
+  @@map("empresas")
+}
+
+model Usuario {
+  id           String      @id @default(uuid())
+  empresaId    String      @map("empresa_id")
+  nome         String
+  email        String
+  senha        String
+  cargo        String?
+  role         Role        @default(USER)
+  ativo        Boolean     @default(true)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  empresa               Empresa        @relation(fields: [empresaId], references: [id])
+  ativosResponsavel     Ativo[]        @relation("responsavel")
+  transferenciasOrigem  Transferencia[] @relation("de_usuario")
+  transferenciasDestino Transferencia[] @relation("para_usuario")
+  inventarios           Inventario[]
+  historicos            HistoricoAtivo[]
+
+  @@unique([email, empresaId])
+  @@map("usuarios")
+}
+
+model Departamento {
+  id        String   @id @default(uuid())
+  empresaId String   @map("empresa_id")
+  nome      String
+  descricao String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  empresa               Empresa       @relation(fields: [empresaId], references: [id])
+  ativos                Ativo[]
+  transferenciasOrigem  Transferencia[] @relation("de_depto")
+  transferenciasDestino Transferencia[] @relation("para_depto")
+
+  @@map("departamentos")
+}
+
+model Localizacao {
+  id        String   @id @default(uuid())
+  empresaId String   @map("empresa_id")
+  nome      String
+  andar     String?
+  sala      String?
+  descricao String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  empresa               Empresa       @relation(fields: [empresaId], references: [id])
+  ativos                Ativo[]
+  transferenciasOrigem  Transferencia[] @relation("de_local")
+  transferenciasDestino Transferencia[] @relation("para_local")
+
+  @@map("localizacoes")
+}
+
+model Categoria {
+  id          String   @id @default(uuid())
+  empresaId   String   @map("empresa_id")
+  nome        String
+  descricao   String?
+  icone       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+  ativos  Ativo[]
+
+  @@map("categorias")
+}
+
+model Ativo {
+  id             String      @id @default(uuid())
+  empresaId      String      @map("empresa_id")
+  nome           String
+  categoriaId    String?     @map("categoria_id")
+  fabricante     String?
+  modelo         String?
+  numeroSerie    String?     @map("numero_serie")
+  codigoBarras   String?     @map("codigo_barras")
+  valorCompra    Decimal?    @map("valor_compra") @db.Decimal(12, 2)
+  dataCompra     DateTime?   @map("data_compra")
+  garantiaFim    DateTime?   @map("garantia_fim")
+  status         StatusAtivo @default(DISPONIVEL)
+  departamentoId String?     @map("departamento_id")
+  localizacaoId  String?     @map("localizacao_id")
+  responsavelId  String?     @map("responsavel_id")
+  observacoes    String?
+  foto           String?
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  empresa       Empresa       @relation(fields: [empresaId], references: [id])
+  categoria     Categoria?    @relation(fields: [categoriaId], references: [id])
+  departamento  Departamento? @relation(fields: [departamentoId], references: [id])
+  localizacao   Localizacao?  @relation(fields: [localizacaoId], references: [id])
+  responsavel   Usuario?      @relation("responsavel", fields: [responsavelId], references: [id])
+  transferencias  Transferencia[]
+  historicos      HistoricoAtivo[]
+  inventarioItens InventarioItem[]
+
+  @@map("ativos")
+}
+
+model Transferencia {
+  id                 String   @id @default(uuid())
+  ativoId            String   @map("ativo_id")
+  deUsuarioId        String?  @map("de_usuario_id")
+  paraUsuarioId      String?  @map("para_usuario_id")
+  deDepartamentoId   String?  @map("de_departamento_id")
+  paraDepartamentoId String?  @map("para_departamento_id")
+  deLocalizacaoId    String?  @map("de_localizacao_id")
+  paraLocalizacaoId  String?  @map("para_localizacao_id")
+  motivo             String?
+  realizadoPorId     String?  @map("realizado_por_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  ativo            Ativo         @relation(fields: [ativoId], references: [id])
+  deUsuario        Usuario?      @relation("de_usuario", fields: [deUsuarioId], references: [id])
+  paraUsuario      Usuario?      @relation("para_usuario", fields: [paraUsuarioId], references: [id])
+  deDepartamento   Departamento? @relation("de_depto", fields: [deDepartamentoId], references: [id])
+  paraDepartamento Departamento? @relation("para_depto", fields: [paraDepartamentoId], references: [id])
+  deLocalizacao    Localizacao?  @relation("de_local", fields: [deLocalizacaoId], references: [id])
+  paraLocalizacao  Localizacao?  @relation("para_local", fields: [paraLocalizacaoId], references: [id])
+
+  @@map("transferencias")
+}
+
+model HistoricoAtivo {
+  id            String   @id @default(uuid())
+  ativoId       String   @map("ativo_id")
+  usuarioId     String?  @map("usuario_id")
+  acao          String
+  campoAlterado String?  @map("campo_alterado")
+  valorAnterior String?  @map("valor_anterior")
+  valorNovo     String?  @map("valor_novo")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  ativo   Ativo    @relation(fields: [ativoId], references: [id])
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@map("historico_ativos")
+}
+
+model Inventario {
+  id            String           @id @default(uuid())
+  empresaId     String           @map("empresa_id")
+  nome          String
+  descricao     String?
+  status        StatusInventario @default(EM_ANDAMENTO)
+  responsavelId String?          @map("responsavel_id")
+  iniciadoEm    DateTime         @default(now()) @map("iniciado_em")
+  finalizadoEm  DateTime?        @map("finalizado_em")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  empresa     Empresa        @relation(fields: [empresaId], references: [id])
+  responsavel Usuario?       @relation(fields: [responsavelId], references: [id])
+  itens       InventarioItem[]
+
+  @@map("inventarios")
+}
+
+model InventarioItem {
+  id           String               @id @default(uuid())
+  inventarioId String               @map("inventario_id")
+  ativoId      String               @map("ativo_id")
+  status       StatusInventarioItem @default(PENDENTE)
+  divergencia  String?
+  verificadoEm DateTime?            @map("verificado_em")
+  createdAt    DateTime             @default(now()) @map("created_at")
+
+  inventario Inventario @relation(fields: [inventarioId], references: [id])
+  ativo      Ativo      @relation(fields: [ativoId], references: [id])
+
+  @@map("inventario_itens")
+}
+
+model Alerta {
+  id        String     @id @default(uuid())
+  empresaId String     @map("empresa_id")
+  tipo      TipoAlerta
+  titulo    String
+  mensagem  String
+  ativoId   String?    @map("ativo_id")
+  lido      Boolean    @default(false)
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@map("alertas")
+}
+
+enum Plano {
+  BASICO
+  PRO
+  ENTERPRISE
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum StatusAtivo {
+  DISPONIVEL
+  EM_USO
+  MANUTENCAO
+  ESTOQUE
+  DESCARTADO
+}
+
+enum StatusInventario {
+  EM_ANDAMENTO
+  FINALIZADO
+  CANCELADO
+}
+
+enum StatusInventarioItem {
+  PENDENTE
+  VERIFICADO
+  DIVERGENTE
+  NAO_ENCONTRADO
+}
+
+enum TipoAlerta {
+  GARANTIA_VENCENDO
+  SEM_RESPONSAVEL
+  SEM_INVENTARIO
+  MANUTENCAO
+}
